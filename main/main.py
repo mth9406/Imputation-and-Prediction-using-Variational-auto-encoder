@@ -208,7 +208,7 @@ def main(args):
     else: 
         train(args, model, train_loader, valid_loader, optimizer, criterion, early_stopping, device)
     
-    print("====================")
+    print("==============================================")
     print("Testing the model...")
     if task_type == 'cls': 
         perf = test_cls(args, model, test_loader, criterion, device)
@@ -234,9 +234,11 @@ if __name__ =='__main__':
         for k, v in perfs.items():
             perfs[k] = [np.mean(perfs[k]), np.std(perfs[k])]
         
-        print("==============================")
+        print("==============================================")
         print(f"Model type: {args.model_type}")
         print(f"Data: {args.data_type}")
+        print(f"Column size: {args.input_size}")
+        print("==============================================")
         if args.test_all_missing:
             print(f"The number of missing values per row: {args.test_n_missing}")
         else:
