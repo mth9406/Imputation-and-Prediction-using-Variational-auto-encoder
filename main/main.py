@@ -94,7 +94,7 @@ def main(args):
     # read data
     # one of: gestures, physionet, mimic3
     print("Loading data...")
-    if args.data_type == 'gestures':
+    if args.data_type == 'gesture':
         # load gestures-data
         X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde\
             = load_gestures(args)
@@ -144,11 +144,11 @@ def main(args):
         X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde\
             = load_spam(args)        
         task_type = 'cls'    
-    # elif args.data_type == 'breast': 
-    #     # load faults data
-    #     X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde\
-    #         = load_breast(args)        
-        # task_type = 'cls'       
+    elif args.data_type == 'breast': 
+        # load faults data
+        X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde\
+            = load_breast(args)        
+        task_type = 'cls'       
     elif args.data_type == 'letter': 
         # load faults data
         X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde\
@@ -156,7 +156,7 @@ def main(args):
         task_type = 'cls'  
     else: 
         print("Unkown data type, data type should be one of the followings...")
-        print("\"gestures\", \"elec\" and \"wind\"")
+        print("gesture, elec, wind, mobile, wine, appliances, pulsar, faults, abalone, spam, letter")
         sys.exit()
 
     # find masks
@@ -238,11 +238,12 @@ if __name__ =='__main__':
         print(f"Model type: {args.model_type}")
         print(f"Data: {args.data_type}")
         print(f"Column size: {args.input_size}")
-        print("==============================================")
+        print(f"Number of classes: {args.n_labels}") 
         if args.test_all_missing:
             print(f"The number of missing values per row: {args.test_n_missing}")
         else:
             print(f"Missing rate: {args.prob}")
+        print("==============================================")
 
         for k, v in perfs.items(): 
             print(f"{k}: mean= {v[0]:.3f}, std= {v[1]:.3f}")
