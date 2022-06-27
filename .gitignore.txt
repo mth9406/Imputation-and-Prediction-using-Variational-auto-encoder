@@ -1,0 +1,14 @@
+#papers
+papers/
+
+#data
+data/
+
+#experiments
+exp/
+
+#jupyternotebook files
+*.ipynb
+
+
+
