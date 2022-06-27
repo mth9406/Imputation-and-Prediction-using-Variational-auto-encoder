@@ -237,6 +237,10 @@ if __name__ =='__main__':
         print("==============================")
         print(f"Model type: {args.model_type}")
         print(f"Data: {args.data_type}")
+        if args.test_all_missing:
+            print(f"The number of missing values per row: {args.test_n_missing}")
+        else:
+            print(f"Missing rate: {args.prob}")
 
         for k, v in perfs.items(): 
             print(f"{k}: mean= {v[0]:.3f}, std= {v[1]:.3f}")
