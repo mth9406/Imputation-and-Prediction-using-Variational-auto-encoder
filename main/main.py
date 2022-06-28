@@ -154,6 +154,11 @@ def main(args):
         X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde\
             = load_letter(args)        
         task_type = 'cls'  
+    elif args.data_type == 'eeg':
+        # load faults data
+        X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde\
+            = load_eeg(args)        
+        task_type = 'cls'         
     else: 
         print("Unkown data type, data type should be one of the followings...")
         print("gesture, elec, wind, mobile, wine, appliances, pulsar, faults, abalone, spam, letter")
