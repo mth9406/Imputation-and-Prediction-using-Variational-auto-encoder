@@ -10,5 +10,8 @@ exp/
 #jupyternotebook files
 *.ipynb
 
+#ppt
+/ppt
+
 
 
