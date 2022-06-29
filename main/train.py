@@ -43,8 +43,8 @@ def train(args,
             model.train()
             # feed forward
             with torch.set_grad_enabled(True):
-                out = model(x)
-                loss_imp = get_loss_imp(x['input'], out['imputation'], x['mask'])
+                out = model(x, cat_features= args.cat_features)
+                loss_imp = get_loss_imp(x['input'], out['imputation'], x['mask'], cat_features= args.cat_features)
                 loss = criterion(out['preds'], x['label'])
                 loss += args.imp_loss_penalty * loss_imp
                 if out['regularization_loss'] is not None: 
@@ -77,8 +77,8 @@ def train(args,
             # model.eval()
             loss = 0
             with torch.no_grad():
-                out = model(x)
-                loss_imp = get_loss_imp(x['input'], out['imputation'], x['mask'])
+                out = model(x, cat_features= args.cat_features)
+                loss_imp = get_loss_imp(x['input'], out['imputation'], x['mask'], cat_features= args.cat_features)
                 loss = criterion(out['preds'], x['label'])
                 loss += args.imp_loss_penalty * loss_imp
                 if out['regularization_loss'] is not None: 
@@ -136,8 +136,8 @@ def test_cls(args,
         model.eval()
         loss = 0
         with torch.no_grad():
-            out = model(x, numobs= args.vai_n_samples)
-            loss_imp = get_loss_imp(x['input'], out['imputation'], x['mask'])
+            out = model(x, numobs= args.vai_n_samples, cat_features= args.cat_features)
+            loss_imp = get_loss_imp(x['input'], out['imputation'], x['mask'], cat_features= args.cat_features)
             preds = torch.argmax(F.softmax(out['preds'], dim=1), dim=1)
             loss = criterion(out['preds'], x['label'])
             loss_reg = 0.
@@ -146,7 +146,7 @@ def test_cls(args,
                 loss_reg += args.imp_loss_penalty * out['regularization_loss']
             tot_loss = loss + args.imp_loss_penalty * loss_imp + loss_reg
             if x['complete_input'] is not None: 
-                imp_pred_loss += get_loss_imp(x['complete_input'], out['imputation'], 1-x['mask'])
+                imp_pred_loss += get_loss_imp(x['complete_input'], out['imputation'], 1-x['mask'], cat_features= args.cat_features)
         # loss
         te_tot_loss += tot_loss.detach().cpu().item()
         te_imp_loss += loss_imp.detach().cpu().item()
@@ -215,8 +215,8 @@ def test_regr(args,
         model.eval()
         loss = 0
         with torch.no_grad():
-            out = model(x)
-            loss_imp = get_loss_imp(x['input'], out['imputation'], x['mask'])
+            out = model(x, cat_features= args.cat_features)
+            loss_imp = get_loss_imp(x['input'], out['imputation'], x['mask'], cat_features= args.cat_features)
             loss = criterion(out['preds'], x['label'])
             loss_reg = 0. 
             imp_pred_loss = 0.
@@ -224,7 +224,7 @@ def test_regr(args,
                 loss_reg += args.imp_loss_penalty * out['regularization_loss']
             tot_loss = loss + args.imp_loss_penalty * loss_imp + loss_reg
             if x['complete_input'] is not None: 
-                imp_pred_loss += get_loss_imp(x['complete_input'], out['imputation'], 1-x['mask'])        
+                imp_pred_loss += get_loss_imp(x['complete_input'], out['imputation'], 1-x['mask'], cat_features= args.cat_features)        
         te_loss_imp += loss_imp.detach().cpu().numpy()
         te_loss_preds += loss.detach().cpu().numpy()
         te_loss_tot += tot_loss.detach().cpu().numpy()
@@ -259,16 +259,5 @@ def test_regr(args,
     }
 
     return perf 
-# def predict(args, model, x, num_obs):
-#     preds, imputations = [], []
-#     device= x['input'].device
-#     for _ in range(num_obs):
-#         out = model(x)
-#         preds.append(out['preds'])
-#         imputations.append(out['imputation'])
-#     preds, imputations = torch.stack(preds, dim= 0).to(device), torch.stack(imputations, dim= 0).to(device)
-#     pred = torch.mean(preds, dim= 0)
-#     imp_mean = torch.mean(imputations, dim= 0)
-#     imp_std = torch.std(imputations, dim= 0)
-#     return pred, imp_mean, imp_std
+
     

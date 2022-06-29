@@ -73,7 +73,7 @@ def train_valid_test_split(args, X, y, task_type= "cls"):
     """
     tr, val = args.tr, args.val
     # split the data into training, validation and test data
-    n = X.shape[0]
+    n, p = X.shape
     si_val = int(n*tr)  # starting index of each validation and test data
     si_te = si_val + int(n*val)
     idx = np.random.permutation(np.arange(n)) # shuffle the index
@@ -83,8 +83,15 @@ def train_valid_test_split(args, X, y, task_type= "cls"):
     X_test, y_test = X.values[idx[si_te:], :], y.values[idx[si_te:], ]
 
     if args.standardize: 
-        X_train, cache = standardize(X_train)
-        X_valid, X_test = standardize_test(X_valid, cache), standardize_test(X_test, cache)
+        if args.cat_features is None:
+            X_train, cache = standardize(X_train)
+            X_valid, X_test = standardize_test(X_valid, cache), standardize_test(X_test, cache)
+        else: 
+            tot_features = list(range(p))
+            num_features = list(set(tot_features)-set(args.cat_features))
+            X_train[:, num_features], cache = standardize(X_train[:, num_features])
+            X_valid[:, num_features], X_test[:, num_features]\
+                 = standardize_test(X_valid[:, num_features], cache), standardize_test(X_test[:, num_features], cache)
 
     X_train, X_valid, X_test\
         = torch.FloatTensor(X_train), torch.FloatTensor(X_valid), torch.FloatTensor(X_test)
@@ -385,9 +392,14 @@ def load_abalone(args):
     data = data.dropna(axis=0)
     
     X, y = data.iloc[:, 1:-1], data.iloc[:, -1]
-    
+    dummies = pd.get_dummies(data.iloc[:, 0], drop_first= True)
+    X = pd.concat([dummies, X], axis= 1)
+
+    args.cat_features = list(range(dummies.shape[1]))
     args.input_size = X.shape[1]
     args.n_labels = 1
+
+    data = pd.concat([X,y], axis= 1)
     print(data.info())
     print('-'*20)
     X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde \
@@ -524,3 +536,36 @@ def load_eeg(args):
 
     return X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde
 
+def load_recipes(args):
+    """
+    A function to load recipes-data.
+    
+    # Parameters
+    args contains the followings...
+    * data_path: a path to gesture-data
+    * tr: the ratio of training data to the original data
+    * val: the ratio of validation data to the original data
+    remaining is the test data so, tr+val < 1.
+
+    # Returns
+    X_train, X_valid, X_test, y_train, y_valid, y_test (torch.FloatTensor for "X", torch.FloatTensor for "y")    
+    """
+    data_file = os.path.join(args.data_path, 'epi_r.csv')
+    data = pd.read_csv(data_file)
+    data = data.dropna(axis=0)
+    
+    X, y = data.iloc[:, 2:-1], data.iloc[:, 1]
+    # dummies = pd.get_dummies(data.iloc[:, 0], drop_first= True)
+    # X = pd.concat([dummies, X], axis= 1)
+
+    args.cat_features = list(range(4, X.shape[1]))
+    args.input_size = X.shape[1]
+    args.n_labels = 1
+
+    data = pd.concat([X,y], axis= 1)
+    print(data.info())
+    print('-'*20)
+    X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde \
+        = train_valid_test_split(args, X, y, task_type= 'regr')
+
+    return X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde

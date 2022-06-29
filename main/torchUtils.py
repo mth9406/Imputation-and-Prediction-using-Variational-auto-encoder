@@ -1,4 +1,5 @@
 import torch
+from torch import nn 
 import numpy as np
 import os
 
@@ -48,17 +49,37 @@ class EarlyStopping:
         torch.save(ckpt_dict, self.path)
         self.val_loss_min = val_loss
 
-def get_loss_imp(x, x_hat, m):
+def get_loss_imp(x, x_hat, m, cat_features= None):
     """
     # Parameters
     x: original value
     m: mask
     x_hat: imputation
+    cat_features: a list of indices of categorical features
 
     # Returns
     imputation loss:
     m * Loss(x_hat, x)
     """
+    if cat_features is not None: 
+        bs, tot_features = x.shape
+        tot_features = list(range(tot_features))
+        num_features = list(set(tot_features)-set(cat_features))
+        
+        # categorical features
+        a_cat = torch.masked_select(x_hat[:, cat_features], m[:, cat_features]== 1.)
+        b_cat = torch.masked_select(x[:, cat_features], m[:, cat_features]== 1.)
+        # numeric features
+        a_num = torch.masked_select(x_hat[:, num_features], m[:, num_features]== 1.)
+        b_num = torch.masked_select(x[:, num_features], m[:, num_features]== 1.)
+        
+        bce_loss = nn.BCEWithLogitsLoss()
+        mse_loss = nn.MSELoss()
+
+        reconloss =\
+            bce_loss(a_cat, b_cat) + mse_loss(a_num, b_num)
+        return reconloss
+
     a = torch.masked_select(x_hat, m==1.)
     b = torch.masked_select(x, m==1.)
     return torch.mean((a-b)**2)

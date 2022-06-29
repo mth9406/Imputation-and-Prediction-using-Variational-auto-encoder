@@ -37,6 +37,8 @@ parser.add_argument('--test_all_missing', action= 'store_true',
                 help= 'force every observation in the test data to have missing values.')
 parser.add_argument('--test_n_missing', type= int, default= 1, 
                 help= 'the number of missing values to generate by row. (default= 1)')
+parser.add_argument("--cat_features", nargs="+", default= None, 
+                help= 'the indices of categorical features (list type, default= None)')
 
 # Training options
 parser.add_argument('--batch_size', type=int, default=32, help='input batch size')
@@ -159,6 +161,11 @@ def main(args):
         X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde\
             = load_eeg(args)        
         task_type = 'cls'         
+    elif args.data_type == 'recipes': 
+        # load wind-data
+        X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde\
+            = load_recipes(args)
+        task_type= 'regr'
     else: 
         print("Unkown data type, data type should be one of the followings...")
         print("gesture, elec, wind, mobile, wine, appliances, pulsar, faults, abalone, spam, letter")
@@ -181,6 +188,7 @@ def main(args):
     # model
     if args.model_type == 'si':
         model = NaiveSoftImpute(args.input_size, args.n_labels, args.drop_p, stack_fc_lyrs=args.stack_fc_lyrs).to(device)
+        args.cat_features = None
     elif args.model_type == 'ai':
         model = AutoImpute(args.input_size, args.n_labels, args.drop_p, stack_fc_lyrs=args.stack_fc_lyrs, stack_ae_lyrs= args.stack_ae_lyrs).to(device)
     elif args.model_type == 'vai': 

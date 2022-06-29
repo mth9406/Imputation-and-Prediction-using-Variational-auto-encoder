@@ -24,7 +24,7 @@ class NaiveSoftImpute(nn.Module):
         self.n_labels = n_labels
         self.drop_p = drop_p    
 
-    def forward(self, x, numobs= 1): 
+    def forward(self, x, numobs= 1, cat_features= None): 
         """
         The input 'x' has several keys:
         input, mask, label
@@ -78,7 +78,7 @@ class AutoImpute(nn.Module):
         self.n_labels = n_labels
         self.drop_p = drop_p  
 
-    def forward(self, x, numobs= 1): 
+    def forward(self, x, numobs= 1, cat_features= None): 
         """
         The input 'x' has several keys:
         input, mask, label
@@ -110,6 +110,7 @@ class AutoImpute(nn.Module):
         # x_hat = torch.masked_fill(x['input'], x['mask']==0, 0) + x_hat * (1-x['mask'])
         encoded = self.encoder_layer(x_hat)
         x_hat = self.decoder_layer(encoded)
+        x_hat = self.reconstruct_categories(x_hat, cat_features)
         y_hat = self.fc_out(x_hat)
         if self.n_labels == 1: 
             y_hat = y_hat.flatten()
@@ -119,7 +120,13 @@ class AutoImpute(nn.Module):
             'regularization_loss': None
         }
         return out
-        
+    
+    def reconstruct_categories(self, x_hat, cat_features= None):
+        if cat_features is None: 
+            return x_hat 
+        x_hat[:, cat_features] = torch.sigmoid(x_hat[:, cat_features])
+        return x_hat
+
 class VariationalAutoImpute(nn.Module):
     """
     Implementation of SoftImpute (initial guess) + Variational Auto-encoder + prediction
@@ -146,13 +153,15 @@ class VariationalAutoImpute(nn.Module):
         self.n_labels = n_labels
         self.drop_p = drop_p  
 
-    def forward(self, x, numobs= 100): 
+    def forward(self, x, numobs= 100, cat_features= None): 
         """
         The input 'x' has several keys:
         input, mask, label
         the firt two are 'features' while the last one is the target.
 
         numobs: takes args.vai_n_samples as an argument.
+
+        cat_features: list of indices of categorical features
 
         Update procedures are as follows...
         (1) make soft impute: x_hat
@@ -185,6 +194,7 @@ class VariationalAutoImpute(nn.Module):
             # x_hat_teacher = torch.clone(x_hat).to(device= x_hat.device)
             z, sigma_sq = self.reparameterize(mu, log_var)
             x_hat = self.decoder_layer(z)
+            # x_hat = self.reconstruct_categories(x_hat, cat_features)
             x_hat_teacher = torch.masked_fill(x['input'], x['mask']==0, 0) + x_hat * (1-x['mask'])
             y_hat = self.fc_out(x_hat_teacher)
             # y_hat = self.fc_out(x_hat)
@@ -194,6 +204,7 @@ class VariationalAutoImpute(nn.Module):
             for i in range(numobs):
                 z, sigma_sq = self.reparameterize(mu, log_var)
                 x_hat = self.decoder_layer(z)
+                x_hat = self.reconstruct_categories(x_hat, cat_features)
                 x_hat = torch.masked_fill(x['input'], x['mask']==0, 0) + x_hat * (1-x['mask'])
                 x_hats.append(x_hat)
             x_hats = torch.stack(x_hats, dim=0)
@@ -218,6 +229,12 @@ class VariationalAutoImpute(nn.Module):
         mu_sq = mu ** 2 
         # sigma_sq = sigma ** 2
         return torch.mean(mu_sq + sigma_sq - torch.log(sigma_sq))
+    
+    def reconstruct_categories(self, x_hat, cat_features= None):
+        if cat_features is None: 
+            return x_hat 
+        x_hat[:, cat_features] = (torch.sigmoid(x_hat[:, cat_features]) >= 0.5) * 1.
+        return x_hat
 
 class VariationalAutoBayesImpute(nn.Module):
     """
@@ -245,7 +262,7 @@ class VariationalAutoBayesImpute(nn.Module):
         self.n_labels = n_labels
         self.drop_p = drop_p  
 
-    def forward(self, x, numobs= 100): 
+    def forward(self, x, numobs= 100, cat_features= None): 
         """
         The input 'x' has several keys:
         input, mask, label
