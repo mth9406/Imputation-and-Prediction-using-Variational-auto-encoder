@@ -110,7 +110,8 @@ class AutoImpute(nn.Module):
         # x_hat = torch.masked_fill(x['input'], x['mask']==0, 0) + x_hat * (1-x['mask'])
         encoded = self.encoder_layer(x_hat)
         x_hat = self.decoder_layer(encoded)
-        x_hat = self.reconstruct_categories(x_hat, cat_features)
+        if not self.training:
+            x_hat = self.reconstruct_categories(x_hat, cat_features)
         y_hat = self.fc_out(x_hat)
         if self.n_labels == 1: 
             y_hat = y_hat.flatten()
@@ -124,7 +125,7 @@ class AutoImpute(nn.Module):
     def reconstruct_categories(self, x_hat, cat_features= None):
         if cat_features is None: 
             return x_hat 
-        x_hat[:, cat_features] = torch.sigmoid(x_hat[:, cat_features])
+        x_hat[:, cat_features] = (torch.sigmoid(x_hat[:, cat_features]) >= 0.5) * 1.
         return x_hat
 
 class VariationalAutoImpute(nn.Module):
