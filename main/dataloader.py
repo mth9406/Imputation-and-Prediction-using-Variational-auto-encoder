@@ -235,8 +235,16 @@ def load_mobile(args):
     data_file = os.path.join(args.data_path, 'train.csv')
     data = pd.read_csv(data_file)
     X, y = data.iloc[:, :-1], data.iloc[:, -1]
-    args.input_size= X.shape[1]
+    cat_features = ['blue', 'dual_sim', 'four_g', 'three_g', 'touch_screen', 'wifi']
+    X_cat = X[cat_features]
+    num_features = list(set(X.columns)-set(cat_features))
+    X_num = X[num_features]
+    X = pd.concat([X_cat,X_num], axis= 1)
+
+    args.cat_features = list(range(X_cat.shape[1]))
+    args.input_size = X.shape[1]
     args.n_labels = 4
+
     print(data.info())
     print('-'*20)
     X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde \
