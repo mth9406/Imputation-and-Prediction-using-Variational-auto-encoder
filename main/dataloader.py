@@ -569,3 +569,40 @@ def load_recipes(args):
         = train_valid_test_split(args, X, y, task_type= 'regr')
 
     return X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde
+
+def load_stroke(args):
+    """
+    A function to load stroke-data.
+    
+    # Parameters
+    args contains the followings...
+    * data_path: a path to gesture-data
+    * tr: the ratio of training data to the original data
+    * val: the ratio of validation data to the original data
+    remaining is the test data so, tr+val < 1.
+
+    # Returns
+    X_train, X_valid, X_test, y_train, y_valid, y_test (torch.FloatTensor for "X", torch.FloatTensor for "y")    
+    """
+    data_file = os.path.join(args.data_path, 'healthcare-dataset-stroke-data.csv')
+    data = pd.read_csv(data_file)
+    data = data.dropna(axis=0)
+    
+    X, y = data.iloc[:, 1:-1], data.iloc[:, -1]
+    X_num = X[['hypertension','heart_disease','age','avg_glucose_level','bmi']]
+    col_cat = X.columns.drop(['age','avg_glucose_level','bmi','hypertension','heart_disease'])
+    X_cat = X[col_cat]
+    X_cat = pd.get_dummies(X_cat, drop_first= True)
+    X = pd.concat([X_cat, X_num], axis= 1)
+
+    args.cat_features = list(range(13))
+    args.input_size = X.shape[1]
+    args.n_labels = 2
+
+    data = pd.concat([X,y], axis= 1)
+    print(data.info())
+    print('-'*20)
+    X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde \
+        = train_valid_test_split(args, X, y, task_type= 'cls')
+
+    return X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde
