@@ -234,7 +234,10 @@ class VariationalAutoImpute(nn.Module):
     def reconstruct_categories(self, x_hat, cat_features= None):
         if cat_features is None: 
             return x_hat 
-        x_hat[:, cat_features] = (torch.sigmoid(x_hat[:, cat_features]) >= 0.5) * 1.
+        if not self.training:
+            x_hat[:, cat_features] = (torch.sigmoid(x_hat[:, cat_features]) >= 0.5) * 1.
+        else: 
+            x_hat[:, cat_features] = torch.sigmoid(x_hat[:, cat_features])
         return x_hat
 
 class VariationalAutoBayesImpute(nn.Module):
