@@ -240,6 +240,32 @@ class VariationalAutoImpute(nn.Module):
             x_hat[:, cat_features] = torch.sigmoid(x_hat[:, cat_features])
         return x_hat
 
+    def make_imp_distribution(self, x, numobs= 100, cat_features= None): 
+        
+        x_hat = torch.FloatTensor(SoftImpute(verbose= False).fit_transform(x['input'].detach().cpu())).to(x['input'].device)
+
+        mu = self.encoder_layer_mu(x_hat)
+        log_var = self.encoder_layer_log_var(x_hat)
+        
+        x_hats = []
+        for i in range(numobs):
+            z, sigma_sq = self.reparameterize(mu, log_var)
+            x_hat = self.decoder_layer(z)
+            x_hat = self.reconstruct_categories(x_hat, cat_features)
+            x_hat = torch.masked_fill(x['input'], x['mask']==0, 0) + x_hat * (1-x['mask'])
+            x_hats.append(x_hat)
+        x_hats = torch.stack(x_hats, dim=0)
+        x_hat = torch.mean(x_hats, dim=0)
+        y_hat = self.fc_out(x_hat)
+        if self.n_labels == 1: 
+            y_hat = y_hat.flatten()
+        out = {
+            'preds': y_hat,
+            'imputation': x_hat,
+            'imputation_dist': x_hats
+            }
+        return out
+
 class VariationalAutoBayesImpute(nn.Module):
     """
     Implementation of SoftImpute (initial guess) + Auto-encoder + prediction
