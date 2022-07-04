@@ -614,3 +614,34 @@ def load_stroke(args):
         = train_valid_test_split(args, X, y, task_type= 'cls')
 
     return X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde
+
+def load_simul(args):
+    """
+    A function to load simul-data.
+    
+    # Parameters
+    args contains the followings...
+    * data_path: a path to gesture-data
+    * tr: the ratio of training data to the original data
+    * val: the ratio of validation data to the original data
+    remaining is the test data so, tr+val < 1.
+
+    # Returns
+    X_train, X_valid, X_test, y_train, y_valid, y_test (torch.FloatTensor for "X", torch.FloatTensor for "y")    
+    """
+    target_file = os.path.join(args.data_path, 'target.csv')
+    var_file = os.path.join(args.data_path, 'var.csv')
+    y = pd.read_csv(target_file).iloc[:, -1]
+    X = pd.read_csv(var_file)
+
+    args.cat_features = None
+    args.input_size = X.shape[1]
+    args.n_labels = 2
+
+    data = pd.concat([X,y], axis= 1)
+    print(data.info())
+    print('-'*20)
+    X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde \
+        = train_valid_test_split(args, X, y, task_type= 'cls')
+
+    return X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde
