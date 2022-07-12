@@ -133,8 +133,6 @@ def train_batch_by_cols(args, x, model, criterion, optimizer):
     n, p = x['input'].shape 
     col_idx = torch.arange(p)
     tot_loss = 0.
-    bce_loss = nn.BCEWithLogitsLoss()
-    mse_loss = nn.MSELoss()
 
     with torch.set_grad_enabled(True):
         for j in range(p): 
@@ -225,9 +223,9 @@ def test_cls(args,
                 imp_pred_loss_cat += l2
         # loss  
         # te_tot_loss += tot_loss.detach().cpu().item()
-        te_imp_pred_loss_num += imp_pred_loss_num.detach().cpu().item()
+        te_imp_pred_loss_num += imp_pred_loss_num.detach().cpu().item() if not isinstance(imp_pred_loss_num, float) else float('nan')
         # te_pred_loss += loss.detach().cpu().item()
-        te_imp_pred_loss_cat += imp_pred_loss_cat.detach().cpu().item()
+        te_imp_pred_loss_cat += imp_pred_loss_cat.detach().cpu().item() if not isinstance(imp_pred_loss_cat, float) else float('nan')
 
         # confusion matrix
         preds = preds.detach().cpu().numpy()
@@ -237,7 +235,7 @@ def test_cls(args,
     # te_tot_loss = te_tot_loss/len(test_loader)
     # te_imp_loss = te_imp_loss/len(test_loader)
     # te_pred_loss = te_pred_loss/len(test_loader)
-    te_imp_pred_loss_num = te_imp_pred_loss_num/len(test_loader)
+    te_imp_pred_loss_num = te_imp_pred_loss_num/len(test_loader) 
     te_imp_pred_loss_cat = te_imp_pred_loss_cat/len(test_loader)
 
     print("Test done!")
@@ -301,7 +299,6 @@ def test_regr(args,
             loss_imp, _ = get_loss_imp(x['input'], out['imputation'], x['mask'], cat_features= args.cat_features)
             loss = criterion(out['preds'], x['label'])
             loss_reg = 0. 
-            imp_pred_loss = 0.
             if out['regularization_loss'] is not None: 
                 loss_reg += args.imp_loss_penalty * out['regularization_loss']
             tot_loss = loss + args.imp_loss_penalty * loss_imp + loss_reg
