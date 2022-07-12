@@ -227,10 +227,11 @@ class VariationalAutoImpute(nn.Module):
             # (2) y_hat
             if self.n_labels == 1: 
                 y_hat = torch.mean(y_hats, dim= 0) # n, 1
-                y_hat = y_hat.flatten() # n, 
             else: 
                 # y_hat, _ = torch.mode(torch.argmax(torch.softmax(y_hats, dim=2), dim=2), dim=0) # num_samples, n, 1 -> n, 1
                 y_hat = y_hats # num_samples, n, num_classes
+        if self.n_labels == 1: 
+            y_hat = y_hat.flatten()
         out = {
             'preds': y_hat,
             'imputation': x_hat,
