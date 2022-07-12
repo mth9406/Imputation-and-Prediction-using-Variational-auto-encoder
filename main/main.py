@@ -197,7 +197,7 @@ def main(args):
     # model
     if args.model_type == 'si':
         model = NaiveSoftImpute(args.input_size, args.n_labels, args.drop_p, stack_fc_lyrs=args.stack_fc_lyrs).to(device)
-        args.cat_features = None
+        # args.cat_features = None
     elif args.model_type == 'ai':
         model = AutoImpute(args.input_size, args.n_labels, args.drop_p, stack_fc_lyrs=args.stack_fc_lyrs, stack_ae_lyrs= args.stack_ae_lyrs).to(device)
     elif args.model_type == 'vai': 

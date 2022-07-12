@@ -64,7 +64,7 @@ def train(args,
                 out = model(x, cat_features= args.cat_features)
                 loss = criterion(out['preds'], x['label'])
                 if args.model_type != 'si':
-                    loss_imp = get_loss_imp(x['input'], out['imputation'], x['mask'], cat_features= args.cat_features)
+                    loss_imp, _ = get_loss_imp(x['input'], out['imputation'], x['mask'], cat_features= args.cat_features)
                     loss += args.imp_loss_penalty * loss_imp
                 if out['regularization_loss'] is not None: 
                     loss += args.imp_loss_penalty * out['regularization_loss']
@@ -161,7 +161,7 @@ def train_batch_by_cols(args, x, model, criterion, optimizer):
             #     loss_imp = bce_loss(a, b)
             # else: 
             #     loss_imp = mse_loss(a, b)
-            loss_imp = get_loss_imp(x['input'], out['imputation'], mask, cat_features= args.cat_features)
+            loss_imp, _ = get_loss_imp(x['input'], out['imputation'], mask, cat_features= args.cat_features)
             loss += args.imp_loss_penalty * loss_imp
             if out['regularization_loss'] is not None: 
                 loss += args.imp_loss_penalty * out['regularization_loss']
@@ -187,8 +187,9 @@ def test_cls(args,
           ):
     
     # te_pred_loss = 0
-    te_imp_loss = 0
-    te_imp_pred_loss = 0
+    # te_imp_loss = 0
+    te_imp_pred_loss_num = 0
+    te_imp_pred_loss_cat = 0
     # te_tot_loss = 0
     
     labels = np.array([np.arange(args.n_labels)])    
@@ -205,7 +206,7 @@ def test_cls(args,
         loss = 0
         with torch.no_grad():
             out = model(x, numobs= args.vai_n_samples, cat_features= args.cat_features)
-            loss_imp = get_loss_imp(x['input'], out['imputation'], x['mask'], cat_features= args.cat_features)
+            loss_imp_num, loss_imp_cat = get_loss_imp(x['input'], out['imputation'], x['mask'], cat_features= args.cat_features, test= True)
             if args.model_type != 'vai':
                 preds = torch.argmax(F.softmax(out['preds'], dim=1), dim=1)
             else: 
@@ -214,17 +215,19 @@ def test_cls(args,
             # preds = out['preds']
             # loss = criterion(out['preds'], x['label'])
             # loss_reg = 0.
-            imp_pred_loss = 0.
+            imp_pred_loss_num, imp_pred_loss_cat = 0., 0.
             # if out['regularization_loss'] is not None: 
             #     loss_reg += args.imp_loss_penalty * out['regularization_loss']
             # tot_loss = loss + args.imp_loss_penalty * loss_imp + loss_reg
             if x['complete_input'] is not None: 
-                imp_pred_loss += get_loss_imp(x['complete_input'], out['imputation'], 1-x['mask'], cat_features= args.cat_features)
-        # loss
+                l1, l2 = get_loss_imp(x['complete_input'], out['imputation'], 1-x['mask'], cat_features= args.cat_features, test=True)
+                imp_pred_loss_num += l1
+                imp_pred_loss_cat += l2
+        # loss  
         # te_tot_loss += tot_loss.detach().cpu().item()
-        te_imp_loss += loss_imp.detach().cpu().item()
+        te_imp_pred_loss_num += imp_pred_loss_num.detach().cpu().item()
         # te_pred_loss += loss.detach().cpu().item()
-        te_imp_pred_loss += imp_pred_loss.detach().cpu().item()
+        te_imp_pred_loss_cat += imp_pred_loss_cat.detach().cpu().item()
 
         # confusion matrix
         preds = preds.detach().cpu().numpy()
@@ -232,25 +235,27 @@ def test_cls(args,
     
     acc, rec, prec, f1 = evaluate(cm, weighted= False) 
     # te_tot_loss = te_tot_loss/len(test_loader)
-    te_imp_loss = te_imp_loss/len(test_loader)
+    # te_imp_loss = te_imp_loss/len(test_loader)
     # te_pred_loss = te_pred_loss/len(test_loader)
-    te_imp_pred_loss = te_imp_pred_loss/len(test_loader)
+    te_imp_pred_loss_num = te_imp_pred_loss_num/len(test_loader)
+    te_imp_pred_loss_cat = te_imp_pred_loss_cat/len(test_loader)
 
     print("Test done!")
     # print(f"test total loss: {te_tot_loss:.2f}")
-    print(f"test imputation loss: {te_imp_loss:.2f}")
+    # print(f"test imputation loss: {te_imp_loss:.2f}")
     # print(f"test prediction loss: {te_pred_loss:.2f}")
-    print(f"test imputation prediction loss {te_imp_pred_loss:.2f}")
+    print(f"test imputation prediction loss (numeric) {te_imp_pred_loss_num:.2f}")
+    print(f"test imputation prediction loss (categorical) {te_imp_pred_loss_cat:.2f}")
     # print() 
     disp = ConfusionMatrixDisplay(confusion_matrix=cm)
     disp.plot()
     cm_file = os.path.join(args.model_path, f"confusion_matrix.png")
     plt.savefig(cm_file)
     plt.show()
-    print(f"정확도 (accuracy): {acc:.2f}")
-    print(f"재현율 (recall): {rec:.2f}")
-    print(f"정밀도 (precision): {prec:.2f}")
-    print(f"F1 score: {f1:.2f}")
+    print(f"정확도 (accuracy): {acc:.2f}   ")
+    print(f"재현율 (recall): {rec:.2f}   ")
+    print(f"정밀도 (precision): {prec:.2f}   ")
+    print(f"F1 score: {f1:.2f}   ")
     print()   
 
     perf = {
@@ -258,7 +263,8 @@ def test_cls(args,
         'rec': rec,
         'prec': prec,
         'f1': f1, 
-        'imp_error':te_imp_pred_loss 
+        'imp_num_error':te_imp_pred_loss_num,
+        'imp_cat_error':te_imp_pred_loss_cat 
     }
 
     return perf 
@@ -273,7 +279,8 @@ def test_regr(args,
     te_loss_imp = 0
     te_loss_preds = 0
     te_loss_tot = 0
-    te_imp_pred_loss = 0.
+    te_imp_pred_loss_num = 0
+    te_imp_pred_loss_cat = 0
     te_r2 = 0
     te_mae = 0
     te_mse = 0
@@ -287,9 +294,11 @@ def test_regr(args,
         
         model.eval()
         loss = 0
+        imp_pred_loss_num = 0
+        imp_pred_loss_cat = 0
         with torch.no_grad():
             out = model(x, cat_features= args.cat_features)
-            loss_imp = get_loss_imp(x['input'], out['imputation'], x['mask'], cat_features= args.cat_features)
+            loss_imp, _ = get_loss_imp(x['input'], out['imputation'], x['mask'], cat_features= args.cat_features)
             loss = criterion(out['preds'], x['label'])
             loss_reg = 0. 
             imp_pred_loss = 0.
@@ -297,11 +306,14 @@ def test_regr(args,
                 loss_reg += args.imp_loss_penalty * out['regularization_loss']
             tot_loss = loss + args.imp_loss_penalty * loss_imp + loss_reg
             if x['complete_input'] is not None: 
-                imp_pred_loss += get_loss_imp(x['complete_input'], out['imputation'], 1-x['mask'], cat_features= args.cat_features)        
+                l1, l2 = get_loss_imp(x['complete_input'], out['imputation'], 1-x['mask'], cat_features= args.cat_features, test= True)        
+                imp_pred_loss_num += l1 
+                imp_pred_loss_cat += l2
         te_loss_imp += loss_imp.detach().cpu().numpy()
         te_loss_preds += loss.detach().cpu().numpy()
         te_loss_tot += tot_loss.detach().cpu().numpy()
-        te_imp_pred_loss += imp_pred_loss.detach().cpu().item()
+        te_imp_pred_loss_num += imp_pred_loss_num.detach().cpu().item()
+        te_imp_pred_loss_cat += imp_pred_loss_cat.detach().cpu().item()
 
         te_r2 += r2_score(out['preds'].detach().cpu().numpy(), x['label'].detach().cpu().numpy())
         te_mae += mean_absolute_error(out['preds'].detach().cpu().numpy(), x['label'].detach().cpu().numpy()) 
@@ -310,7 +322,8 @@ def test_regr(args,
     te_loss_imp = te_loss_imp/len(test_loader)
     te_loss_preds = te_loss_preds/len(test_loader)
     te_loss_tot = te_loss_tot/len(test_loader)
-    te_imp_pred_loss = te_imp_pred_loss/len(test_loader)
+    te_imp_pred_loss_num = te_imp_pred_loss_num/len(test_loader)
+    te_imp_pred_loss_cat = te_imp_pred_loss_cat/len(test_loader)
     te_r2 = te_r2/len(test_loader)
     te_mae = te_mae/len(test_loader)
     te_mse = te_mse/len(test_loader)
@@ -318,7 +331,8 @@ def test_regr(args,
     print(f"imputation loss: {te_loss_imp:.2f}")
     print(f"prediction loss: {te_loss_preds:.2f}")
     print(f"total loss: {te_loss_tot:.2f}")
-    print(f"test imputation prediction loss {te_imp_pred_loss:.2f}")
+    print(f"test imputation prediction loss (numeric) {te_imp_pred_loss_num:.2f}")
+    print(f"test imputation prediction loss (categorical) {te_imp_pred_loss_cat:.2f}")
     print(f"r2: {te_r2:.2f}")
     print(f"mae: {te_mae:.2f}")
     print(f"mse: {te_mse:.2f}")
@@ -328,7 +342,8 @@ def test_regr(args,
         'r2': te_r2,
         'mae': te_mae,
         'mse': te_mse,
-        'imp_error':te_imp_pred_loss 
+        'imp_num_error':te_imp_pred_loss_num,
+        'imp_cat_error':te_imp_pred_loss_cat 
     }
 
     return perf 

@@ -49,7 +49,7 @@ class EarlyStopping:
         torch.save(ckpt_dict, self.path)
         self.val_loss_min = val_loss
 
-def get_loss_imp(x, x_hat, m, cat_features= None):
+def get_loss_imp(x, x_hat, m, cat_features= None, test= False):
     """
     # Parameters
     x: original value
@@ -76,10 +76,16 @@ def get_loss_imp(x, x_hat, m, cat_features= None):
         bce_loss = nn.BCEWithLogitsLoss(reduction= 'sum')
         mse_loss = nn.MSELoss(reduction= 'sum')
 
+        cat_loss = bce_loss(a_cat, b_cat) 
+        num_loss = mse_loss(a_num, b_num)
         reconloss =\
-            (bce_loss(a_cat, b_cat) + mse_loss(a_num, b_num))/(bs*len(tot_features))
-        return reconloss
+            (cat_loss + num_loss)/(bs*len(tot_features))
+
+        if test: 
+            return num_loss/(bs*len(num_features)), cat_loss/(bs*len(cat_features))
+        
+        return reconloss, -1
 
     a = torch.masked_select(x_hat, m==1.)
     b = torch.masked_select(x, m==1.)
-    return torch.mean((a-b)**2)
+    return torch.mean((a-b)**2), -1
