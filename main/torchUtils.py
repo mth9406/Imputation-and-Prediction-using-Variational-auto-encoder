@@ -73,11 +73,11 @@ def get_loss_imp(x, x_hat, m, cat_features= None):
         a_num = torch.masked_select(x_hat[:, num_features], m[:, num_features]== 1.)
         b_num = torch.masked_select(x[:, num_features], m[:, num_features]== 1.)
         
-        bce_loss = nn.BCEWithLogitsLoss()
-        mse_loss = nn.MSELoss()
+        bce_loss = nn.BCEWithLogitsLoss(reduction= 'sum')
+        mse_loss = nn.MSELoss(reduction= 'sum')
 
         reconloss =\
-            bce_loss(a_cat, b_cat) + mse_loss(a_num, b_num)
+            (bce_loss(a_cat, b_cat) + mse_loss(a_num, b_num))/(bs*len(tot_features))
         return reconloss
 
     a = torch.masked_select(x_hat, m==1.)

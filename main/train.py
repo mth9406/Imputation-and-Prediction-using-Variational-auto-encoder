@@ -42,32 +42,16 @@ def train(args,
 
             model.train()
             # feed forward
-            with torch.set_grad_enabled(True):
-                out = model(x, cat_features= args.cat_features)
-                loss_imp = get_loss_imp(x['input'], out['imputation'], x['mask'], cat_features= args.cat_features)
-                loss = criterion(out['preds'], x['label'])
-                loss += args.imp_loss_penalty * loss_imp
-                if out['regularization_loss'] is not None: 
-                    loss += args.imp_loss_penalty * out['regularization_loss']
-                if kl_loss is not None: 
-                    kl = kl_loss(model)[0]
-                    # print(kl)
-                    # print(loss)
-                    loss += args.kl_weight * kl
-            
-            # backward 
-            model.zero_grad()
-            optimizer.zero_grad()
-            loss.backward()
-            # nn.utils.clip_grad_norm_(model.parameters(), args.gradient_max_norm)
-            optimizer.step()
-
+            if args.model_type == 'si': 
+                loss = train_batch(args, x, model, criterion, optimizer)
+            else: 
+                loss = train_batch_by_cols(args, x, model, criterion, optimizer)
             # store the d_tr_loss
-            tr_loss += loss.detach().cpu().item()
+            tr_loss += loss
 
             if (batch_idx+1) % args.print_log_option == 0:
                 print(f'Epoch [{epoch+1}/{args.epoch}] Batch [{batch_idx+1}/{num_batches}]: \
-                    loss = {loss.detach().cpu().item()}')
+                    loss = {loss}')
 
         # a validation loop 
         for batch_idx, x in enumerate(valid_loader):
@@ -78,9 +62,10 @@ def train(args,
             loss = 0
             with torch.no_grad():
                 out = model(x, cat_features= args.cat_features)
-                loss_imp = get_loss_imp(x['input'], out['imputation'], x['mask'], cat_features= args.cat_features)
                 loss = criterion(out['preds'], x['label'])
-                loss += args.imp_loss_penalty * loss_imp
+                if args.model_type != 'si':
+                    loss_imp = get_loss_imp(x['input'], out['imputation'], x['mask'], cat_features= args.cat_features)
+                    loss += args.imp_loss_penalty * loss_imp
                 if out['regularization_loss'] is not None: 
                     loss += args.imp_loss_penalty * out['regularization_loss']
                 if kl_loss is not None: 
@@ -111,6 +96,89 @@ def train(args,
         for i in range(1, n):
             wr.writerow(rows[i, :])
 
+def train_batch(args, x, model, criterion, optimizer): 
+    model.train()
+    # feed forward
+    with torch.set_grad_enabled(True):
+        out = model(x, cat_features= args.cat_features)
+        # prediction loss
+        loss = criterion(out['preds'], x['label'])
+        # imputation loss 
+    # backward 
+    model.zero_grad()
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+    return loss.detach().cpu().item()
+
+def train_batch_by_cols(args, x, model, criterion, optimizer): 
+    """Calculates imputation loss + prediction loss by columns and returns the total loss       
+    # Arguments     
+    ___________     
+    args : dict type     
+        It has the following items    
+        * cat_features: indices of categorical features     
+    x : dict type      
+        * x['input']: input vector     
+        * x['mask']: mask vector        
+        ...       
+    model: subclass of nn.Module       
+
+    # Returns      
+    _________         
+    total loss of each columns        
+    if it uses variational auto-encoder, then the prior-fitting regularization will be added.            
+    """
+    model.train()
+    n, p = x['input'].shape 
+    col_idx = torch.arange(p)
+    tot_loss = 0.
+    bce_loss = nn.BCEWithLogitsLoss()
+    mse_loss = nn.MSELoss()
+
+    with torch.set_grad_enabled(True):
+        for j in range(p): 
+            loss = 0.
+            input_tilde = torch.clone(x['input']).detach().to(x['input'].device)
+            input_tilde[:, j] = float('nan')
+            mask_tilde = torch.clone(x['mask']).detach().to(x['mask'].device)
+            mask_tilde[:, j] = 0.
+            x_tilde = {
+                'input': input_tilde,
+                'mask': mask_tilde
+            }
+            # make j'th column nan
+            # and predict the j'th nan columns by vai 
+            # obtain imputation loss w.r.t. j'th column 
+            # the loss is calculated only for 
+            # x['mask'] == 1 and j'th column
+            out = model(x_tilde, cat_features= args.cat_features)
+            mask = ((x_tilde['mask']==0)&(x['mask']==1)).to(x['mask'].device) * 1. 
+            mask[:, col_idx!= j] = 0. # we only use j'th column to calculate the imputation loss.
+            # a = torch.masked_select(out['imputation'], mask==1.)
+            # b = torch.masked_select(x['input'], mask==1.)
+            # if j in args.cat_features: 
+            #     loss_imp = bce_loss(a, b)
+            # else: 
+            #     loss_imp = mse_loss(a, b)
+            loss_imp = get_loss_imp(x['input'], out['imputation'], mask, cat_features= args.cat_features)
+            loss += args.imp_loss_penalty * loss_imp
+            if out['regularization_loss'] is not None: 
+                loss += args.imp_loss_penalty * out['regularization_loss']
+            
+            # forward prediction 
+            loss += criterion(out['preds'], x['label'])
+
+            # backward 
+            model.zero_grad()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            tot_loss += loss.detach().cpu().item()
+        
+    return tot_loss/p
+
 def test_cls(args, 
           model, 
           test_loader, 
@@ -118,10 +186,10 @@ def test_cls(args,
           device
           ):
     
-    te_pred_loss = 0
+    # te_pred_loss = 0
     te_imp_loss = 0
     te_imp_pred_loss = 0
-    te_tot_loss = 0
+    # te_tot_loss = 0
     
     labels = np.array([np.arange(args.n_labels)])    
     cm = np.zeros((args.n_labels, args.n_labels))
@@ -138,19 +206,24 @@ def test_cls(args,
         with torch.no_grad():
             out = model(x, numobs= args.vai_n_samples, cat_features= args.cat_features)
             loss_imp = get_loss_imp(x['input'], out['imputation'], x['mask'], cat_features= args.cat_features)
-            preds = torch.argmax(F.softmax(out['preds'], dim=1), dim=1)
-            loss = criterion(out['preds'], x['label'])
-            loss_reg = 0.
+            if args.model_type != 'vai':
+                preds = torch.argmax(F.softmax(out['preds'], dim=1), dim=1)
+            else: 
+                preds, _ = torch.mode(torch.argmax(torch.softmax(out['preds'], dim=2), dim=2), dim=0) 
+
+            # preds = out['preds']
+            # loss = criterion(out['preds'], x['label'])
+            # loss_reg = 0.
             imp_pred_loss = 0.
-            if out['regularization_loss'] is not None: 
-                loss_reg += args.imp_loss_penalty * out['regularization_loss']
-            tot_loss = loss + args.imp_loss_penalty * loss_imp + loss_reg
+            # if out['regularization_loss'] is not None: 
+            #     loss_reg += args.imp_loss_penalty * out['regularization_loss']
+            # tot_loss = loss + args.imp_loss_penalty * loss_imp + loss_reg
             if x['complete_input'] is not None: 
                 imp_pred_loss += get_loss_imp(x['complete_input'], out['imputation'], 1-x['mask'], cat_features= args.cat_features)
         # loss
-        te_tot_loss += tot_loss.detach().cpu().item()
+        # te_tot_loss += tot_loss.detach().cpu().item()
         te_imp_loss += loss_imp.detach().cpu().item()
-        te_pred_loss += loss.detach().cpu().item()
+        # te_pred_loss += loss.detach().cpu().item()
         te_imp_pred_loss += imp_pred_loss.detach().cpu().item()
 
         # confusion matrix
@@ -158,17 +231,17 @@ def test_cls(args,
         cm += confusion_matrix(x['label'].detach().cpu().numpy(), preds, labels= labels)
     
     acc, rec, prec, f1 = evaluate(cm, weighted= False) 
-    te_tot_loss = te_tot_loss/len(test_loader)
+    # te_tot_loss = te_tot_loss/len(test_loader)
     te_imp_loss = te_imp_loss/len(test_loader)
-    te_pred_loss = te_pred_loss/len(test_loader)
+    # te_pred_loss = te_pred_loss/len(test_loader)
     te_imp_pred_loss = te_imp_pred_loss/len(test_loader)
 
     print("Test done!")
-    print(f"test total loss: {te_tot_loss:.2f}")
+    # print(f"test total loss: {te_tot_loss:.2f}")
     print(f"test imputation loss: {te_imp_loss:.2f}")
-    print(f"test prediction loss: {te_pred_loss:.2f}")
+    # print(f"test prediction loss: {te_pred_loss:.2f}")
     print(f"test imputation prediction loss {te_imp_pred_loss:.2f}")
-    print() 
+    # print() 
     disp = ConfusionMatrixDisplay(confusion_matrix=cm)
     disp.plot()
     cm_file = os.path.join(args.model_path, f"confusion_matrix.png")

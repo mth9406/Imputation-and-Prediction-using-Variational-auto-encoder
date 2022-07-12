@@ -111,8 +111,14 @@ class AutoImpute(nn.Module):
         encoded = self.encoder_layer(x_hat)
         x_hat = self.decoder_layer(encoded)
         if not self.training:
+            x_hat = torch.masked_fill(x['input'], x['mask']==0, 0) + x_hat * (1-x['mask'])
             x_hat = self.reconstruct_categories(x_hat, cat_features)
-        y_hat = self.fc_out(x_hat)
+        if self.training: 
+            x_hat_teacher = torch.masked_fill(x['input'], x['mask']==0, 0) + x_hat * (1-x['mask'])
+            y_hat = self.fc_out(x_hat_teacher)
+        else:
+            y_hat = self.fc_out(x_hat)
+            # y_hat = torch.argmax(torch.softmax(y_hat, dim=-1), dim=-1)
         if self.n_labels == 1: 
             y_hat = y_hat.flatten()
         out = {
@@ -202,18 +208,29 @@ class VariationalAutoImpute(nn.Module):
             loss = self.loss_regularization(mu, sigma_sq)        
         else: 
             x_hats = []
+            y_hats = []
             for i in range(numobs):
                 z, sigma_sq = self.reparameterize(mu, log_var)
                 x_hat = self.decoder_layer(z)
                 x_hat = self.reconstruct_categories(x_hat, cat_features)
                 x_hat = torch.masked_fill(x['input'], x['mask']==0, 0) + x_hat * (1-x['mask'])
                 x_hats.append(x_hat)
+                y_hats.append(self.fc_out(x_hat))
             x_hats = torch.stack(x_hats, dim=0)
-            x_hats = torch.mean(x_hats, dim=0)
-            x_hat = x_hats
-            y_hat = self.fc_out(x_hat)
-        if self.n_labels == 1: 
-            y_hat = y_hat.flatten()
+            y_hats = torch.stack(y_hats, dim=0)
+            # aggregates the 'outputs'
+            # (1) x_hat
+            # x_hats = torch.mean(x_hats, dim=0)
+            x_hat = torch.quantile(x_hats, q= 0.5, dim= 0)
+            if cat_features is not None: 
+                x_hat[:, cat_features], _ = torch.mode(x_hats[..., cat_features], dim=0)
+            # (2) y_hat
+            if self.n_labels == 1: 
+                y_hat = torch.mean(y_hats, dim= 0) # n, 1
+                y_hat = y_hat.flatten() # n, 
+            else: 
+                # y_hat, _ = torch.mode(torch.argmax(torch.softmax(y_hats, dim=2), dim=2), dim=0) # num_samples, n, 1 -> n, 1
+                y_hat = y_hats # num_samples, n, num_classes
         out = {
             'preds': y_hat,
             'imputation': x_hat,
@@ -241,29 +258,8 @@ class VariationalAutoImpute(nn.Module):
         return x_hat
 
     def make_imp_distribution(self, x, numobs= 100, cat_features= None): 
-        
-        x_hat = torch.FloatTensor(SoftImpute(verbose= False).fit_transform(x['input'].detach().cpu())).to(x['input'].device)
-
-        mu = self.encoder_layer_mu(x_hat)
-        log_var = self.encoder_layer_log_var(x_hat)
-        
-        x_hats = []
-        for i in range(numobs):
-            z, sigma_sq = self.reparameterize(mu, log_var)
-            x_hat = self.decoder_layer(z)
-            x_hat = self.reconstruct_categories(x_hat, cat_features)
-            x_hat = torch.masked_fill(x['input'], x['mask']==0, 0) + x_hat * (1-x['mask'])
-            x_hats.append(x_hat)
-        x_hats = torch.stack(x_hats, dim=0)
-        x_hat = torch.mean(x_hats, dim=0)
-        y_hat = self.fc_out(x_hat)
-        if self.n_labels == 1: 
-            y_hat = y_hat.flatten()
-        out = {
-            'preds': y_hat,
-            'imputation': x_hat,
-            'imputation_dist': x_hats
-            }
+        self.training = False 
+        out = self.forward(x, numobs, cat_features)
         return out
 
 class VariationalAutoBayesImpute(nn.Module):
