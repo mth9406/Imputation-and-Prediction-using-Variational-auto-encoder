@@ -69,20 +69,22 @@ def get_loss_imp(x, x_hat, m, cat_features= None, test= False):
         # categorical features
         a_cat = torch.masked_select(x_hat[:, cat_features], m[:, cat_features]== 1.)
         b_cat = torch.masked_select(x[:, cat_features], m[:, cat_features]== 1.)
+        num_cat = torch.sum(m[:, cat_features]== 1.).detach()
         # numeric features
         a_num = torch.masked_select(x_hat[:, num_features], m[:, num_features]== 1.)
         b_num = torch.masked_select(x[:, num_features], m[:, num_features]== 1.)
-        
+        num_num = torch.sum(m[:, num_features]== 1.).detach()
+
         bce_loss = nn.BCEWithLogitsLoss(reduction= 'sum')
         mse_loss = nn.MSELoss(reduction= 'sum')
 
         cat_loss = bce_loss(a_cat, b_cat) 
         num_loss = mse_loss(a_num, b_num)
         reconloss =\
-            (cat_loss + num_loss)/(bs*len(tot_features))
+            (cat_loss + num_loss)/(num_cat+num_num)
 
         if test: 
-            return num_loss/(bs*len(num_features)), cat_loss/(bs*len(cat_features))
+            return num_loss/num_num, cat_loss/num_cat
         
         return reconloss, -1
 
