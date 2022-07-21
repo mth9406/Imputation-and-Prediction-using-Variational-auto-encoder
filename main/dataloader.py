@@ -172,7 +172,8 @@ def load_elec(args):
     X_train, X_valid, X_test, y_train, y_valid, y_test (torch.FloatTensor for "X", torch.LongTensor for "y")    
     """
     f = os.path.join(args.data_path, 'elec_data.csv') # file
-    data = pd.read_csv(f, encoding= 'cp949')
+    # data = pd.read_csv(f, encoding= 'cp949')
+    data = pd.read_csv(f)
     data = data.dropna(axis= 0)
     print(data.info())
     print('-'*20)

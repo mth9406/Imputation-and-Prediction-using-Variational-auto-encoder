@@ -268,4 +268,4 @@ if __name__ =='__main__':
         print("==============================================")
 
         for k, v in perfs.items(): 
-            print(f"{k}: mean= {v[0]:.3f}, std= {v[1]:.3f}")
+            print(f"{k}: mean= {v[0]:.3f}, std= {v[1]:.3f}     ")
