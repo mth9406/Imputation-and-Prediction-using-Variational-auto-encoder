@@ -53,6 +53,14 @@ def standardize(X_train):
 def standardize_test(X_test, cache):
     return (X_test-cache['mean'])/cache['std']
 
+def min_max_scaler(X_train):
+    cache = {'min':0, 'max':0}
+    cache['min'], cache['max'] = np.nanmin(X_train, axis= 0, keepdims= True), np.nanmax(X_train, axis= 0, keepdims= True)
+    return 2*(X_train-cache['min'])/(cache['max']-cache['min'])-1, cache
+
+def min_max_scaler_test(X_test, cache):
+    return 2*(X_test-cache['min'])/(cache['max']-cache['min'])-1
+
 def div0( a, b, fill=np.nan ):
     """ a / b, divide by 0 -> `fill`
         div0( [-1, 0, 1], 0, fill=np.nan) -> [nan nan nan]

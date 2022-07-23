@@ -135,30 +135,24 @@ def train_batch_by_cols(args, x, model, criterion, optimizer):
     tot_loss = 0.
 
     with torch.set_grad_enabled(True):
-        for j in range(p): 
+        for j in torch.randperm(p): 
             loss = 0.
             input_tilde = torch.clone(x['input']).detach().to(x['input'].device)
-            input_tilde[:, j] = float('nan')
+            selected_idx = torch.randperm(n)[:int(n*0.10)]
+            input_tilde[selected_idx, j] = float('nan')
             mask_tilde = torch.clone(x['mask']).detach().to(x['mask'].device)
-            mask_tilde[:, j] = 0.
+            mask_tilde[selected_idx, j] = 0.
             x_tilde = {
                 'input': input_tilde,
                 'mask': mask_tilde
             }
             # make j'th column nan
             # and predict the j'th nan columns by vai 
-            # obtain imputation loss w.r.t. j'th column 
+            # obtain imputation loss w.r.t. j'th column and reconstruction loss for else where.
             # the loss is calculated only for 
-            # x['mask'] == 1 and j'th column
+            # x['mask'] == 1 
             out = model(x_tilde, cat_features= args.cat_features)
-            mask = ((x_tilde['mask']==0)&(x['mask']==1)).to(x['mask'].device) * 1. 
-            mask[:, col_idx!= j] = 0. # we only use j'th column to calculate the imputation loss.
-            # a = torch.masked_select(out['imputation'], mask==1.)
-            # b = torch.masked_select(x['input'], mask==1.)
-            # if j in args.cat_features: 
-            #     loss_imp = bce_loss(a, b)
-            # else: 
-            #     loss_imp = mse_loss(a, b)
+            mask = (x['mask']==1).to(x['mask'].device) * 1. 
             loss_imp, _ = get_loss_imp(x['input'], out['imputation'], mask, cat_features= args.cat_features)
             loss += args.imp_loss_penalty * loss_imp
             if out['regularization_loss'] is not None: 

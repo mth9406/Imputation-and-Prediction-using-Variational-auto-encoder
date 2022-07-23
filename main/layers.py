@@ -30,7 +30,7 @@ class DecoderLayer(nn.Sequential):
                 nn.Linear(in_features=in_features, out_features=out_features),
                 nn.BatchNorm1d(out_features),
                 nn.Dropout(p=drop_p, inplace=False),
-                nn.ReLU()
+                nn.Tanh()
         )
 
 class EncoderDoubleLayer(nn.Sequential):
@@ -67,7 +67,7 @@ class DecoderDoubleLayer(nn.Sequential):
                 nn.Linear(middle_features, out_features),
                 nn.Dropout(p= drop_p, inplace= False),
                 nn.BatchNorm1d(out_features),
-                nn.ReLU()
+                nn.Tanh()
         )
 
 class BayesDecoderDoubleLayer(nn.Sequential):

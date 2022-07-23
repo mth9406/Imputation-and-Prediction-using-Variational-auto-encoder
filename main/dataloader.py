@@ -84,14 +84,14 @@ def train_valid_test_split(args, X, y, task_type= "cls"):
 
     if args.standardize: 
         if args.cat_features is None:
-            X_train, cache = standardize(X_train)
-            X_valid, X_test = standardize_test(X_valid, cache), standardize_test(X_test, cache)
+            X_train, cache = min_max_scaler(X_train)
+            X_valid, X_test = min_max_scaler_test(X_valid, cache), standardize_test(X_test, cache)
         else: 
             tot_features = list(range(p))
             num_features = list(set(tot_features)-set(args.cat_features))
-            X_train[:, num_features], cache = standardize(X_train[:, num_features])
+            X_train[:, num_features], cache = min_max_scaler(X_train[:, num_features])
             X_valid[:, num_features], X_test[:, num_features]\
-                 = standardize_test(X_valid[:, num_features], cache), standardize_test(X_test[:, num_features], cache)
+                 = min_max_scaler_test(X_valid[:, num_features], cache), min_max_scaler_test(X_test[:, num_features], cache)
 
     X_train, X_valid, X_test\
         = torch.FloatTensor(X_train), torch.FloatTensor(X_valid), torch.FloatTensor(X_test)
@@ -644,5 +644,45 @@ def load_simul(args):
     print('-'*20)
     X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde \
         = train_valid_test_split(args, X, y, task_type= 'cls')
+
+    return X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde
+
+def load_bench(args):
+    """
+    A function to load bench-data.
+    
+    # Parameters
+    args contains the followings...
+    * data_path: a path to gesture-data
+    * tr: the ratio of training data to the original data
+    * val: the ratio of validation data to the original data
+    remaining is the test data so, tr+val < 1.
+
+    # Returns
+    X_train, X_valid, X_test, y_train, y_valid, y_test (torch.FloatTensor for "X", torch.FloatTensor for "y")    
+    """
+    X_file = os.path.join(args.data_path, 'X_train.csv')
+    y_file = os.path.join(args.data_path, 'y_train.csv')
+    X = pd.read_csv(X_file).drop(['BestSquatKg'], axis= 1)
+    y = pd.read_csv(y_file).iloc[:, 1]
+    data = pd.concat([X,y], axis= 1)
+    data = data.dropna(axis=0)
+    X = data.iloc[:, :-1]
+    y = data.iloc[:, -1]
+
+    X_num = X.iloc[:, 4:]
+    X_cat = X.iloc[:, 2:4]
+    X_cat = pd.get_dummies(X_cat, drop_first= True)
+    X = pd.concat([X_cat, X_num], axis= 1)
+
+    args.cat_features = list(range(4))
+    args.input_size = X.shape[1]
+    args.n_labels = 1
+
+    data = pd.concat([X,y], axis= 1)
+    print(data.info())
+    print('-'*20)
+    X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde \
+        = train_valid_test_split(args, X, y, task_type= 'regr')
 
     return X_train, X_valid, X_test, y_train, y_valid, y_test, X_train_tilde, X_valid_tilde, X_test_tilde
