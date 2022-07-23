@@ -306,7 +306,7 @@ def test_regr(args,
         te_imp_pred_loss_num += imp_pred_loss_num.detach().cpu().item()
         te_imp_pred_loss_cat += imp_pred_loss_cat.detach().cpu().item()
 
-        te_r2 += r2_score(out['preds'].detach().cpu().numpy(), x['label'].detach().cpu().numpy())
+        te_r2 += r2_score(x['label'].detach().cpu().numpy(),out['preds'].detach().cpu().numpy())
         te_mae += mean_absolute_error(out['preds'].detach().cpu().numpy(), x['label'].detach().cpu().numpy()) 
         te_mse += mean_squared_error(out['preds'].detach().cpu().numpy(), x['label'].detach().cpu().numpy()) 
 
