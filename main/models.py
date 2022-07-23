@@ -244,10 +244,10 @@ class VariationalAutoImpute(nn.Module):
         eps = torch.randn_like(sigma_sq).to(log_var.device)
         return mu + torch.sqrt(sigma_sq) * eps, sigma_sq
     
-    def loss_regularization(self, mu, sigma_sq):
+    def loss_regularization(self, mu, sigma_sq, eps= 1e-10):
         mu_sq = mu ** 2 
         # sigma_sq = sigma ** 2
-        return torch.mean(mu_sq + sigma_sq - torch.log(sigma_sq))
+        return torch.mean(mu_sq + sigma_sq - torch.log(sigma_sq+eps))
     
     def reconstruct_categories(self, x_hat, cat_features= None):
         if cat_features is None: 
