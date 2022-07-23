@@ -92,6 +92,10 @@ def train_valid_test_split(args, X, y, task_type= "cls"):
             X_train[:, num_features], cache = min_max_scaler(X_train[:, num_features])
             X_valid[:, num_features], X_test[:, num_features]\
                  = min_max_scaler_test(X_valid[:, num_features], cache), min_max_scaler_test(X_test[:, num_features], cache)
+        if task_type == 'regr': 
+            y_train, cache = min_max_scaler(y_train) 
+            y_test = min_max_scaler_test(y_test, cache)
+            y_valid = min_max_scaler_test(y_valid, cache)
 
     X_train, X_valid, X_test\
         = torch.FloatTensor(X_train), torch.FloatTensor(X_valid), torch.FloatTensor(X_test)
