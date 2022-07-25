@@ -85,7 +85,7 @@ def train_valid_test_split(args, X, y, task_type= "cls"):
     if args.standardize: 
         if args.cat_features is None:
             X_train, cache = min_max_scaler(X_train)
-            X_valid, X_test = min_max_scaler_test(X_valid, cache), standardize_test(X_test, cache)
+            X_valid, X_test = min_max_scaler_test(X_valid, cache), min_max_scaler_test(X_test, cache)
         else: 
             tot_features = list(range(p))
             num_features = list(set(tot_features)-set(args.cat_features))
